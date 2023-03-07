@@ -1,0 +1,17 @@
+{
+	"name": "ds_snow_BSA",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_snow_BSA",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "SnowflakeTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "TEAM5",
+			"table": "BIKE_SHARE_ANALYSIS_PROJECT9"
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

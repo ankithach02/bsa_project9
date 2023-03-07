@@ -1,0 +1,271 @@
+{
+	"name": "pl_BSA_Project9",
+	"properties": {
+		"activities": [
+			{
+				"name": "adls to snowflake",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "DelimitedTextSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"modifiedDatetimeStart": {
+								"value": "@adddays(utcnow(),-60)",
+								"type": "Expression"
+							},
+							"modifiedDatetimeEnd": {
+								"value": "@utcnow()",
+								"type": "Expression"
+							},
+							"wildcardFolderPath": "bsa-input",
+							"wildcardFileName": "*.csv",
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "DelimitedTextReadSettings"
+						}
+					},
+					"sink": {
+						"type": "SnowflakeSink",
+						"importSettings": {
+							"type": "SnowflakeImportCopyCommand"
+						}
+					},
+					"enableStaging": true,
+					"stagingSettings": {
+						"linkedServiceName": {
+							"referenceName": "ls_blob_BSA",
+							"type": "LinkedServiceReference"
+						},
+						"path": "bsa-project9/bsa-input"
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "ds_gen2_BSA_input",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_snow_BSA",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "adls to adls",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "adls to snowflake",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "DelimitedTextSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"wildcardFolderPath": "bsa-input",
+							"wildcardFileName": "*.csv",
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "DelimitedTextReadSettings"
+						}
+					},
+					"sink": {
+						"type": "DelimitedTextSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "DelimitedTextWriteSettings",
+							"quoteAllText": true,
+							"fileExtension": ".txt"
+						}
+					},
+					"enableStaging": true,
+					"stagingSettings": {
+						"linkedServiceName": {
+							"referenceName": "ls_blob_BSA_archive",
+							"type": "LinkedServiceReference"
+						},
+						"path": "bsa-project9/bsa-input"
+					},
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "ds_gen2_BSA_input",
+						"type": "DatasetReference"
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "ds_gen2_BSA_archive",
+						"type": "DatasetReference"
+					}
+				]
+			},
+			{
+				"name": "Deleting files in input folder",
+				"type": "Delete",
+				"dependsOn": [
+					{
+						"activity": "adls to adls",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"dataset": {
+						"referenceName": "ds_gen2_BSA_input",
+						"type": "DatasetReference"
+					},
+					"logStorageSettings": {
+						"linkedServiceName": {
+							"referenceName": "ls_gen2_BSA",
+							"type": "LinkedServiceReference"
+						},
+						"path": "bsa-input"
+					},
+					"enableLogging": true,
+					"storeSettings": {
+						"type": "AzureBlobFSReadSettings",
+						"recursive": true,
+						"wildcardFileName": "*.csv",
+						"enablePartitionDiscovery": false
+					}
+				}
+			},
+			{
+				"name": "lkp_stored_procedure",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "adls to snowflake",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "SnowflakeSource",
+						"query": "call BIKE_SHARE_ANALYSIS.TEAM5.SP_BSA()",
+						"exportSettings": {
+							"type": "SnowflakeExportCopyCommand"
+						}
+					},
+					"dataset": {
+						"referenceName": "ds_snow_BSA",
+						"type": "DatasetReference"
+					}
+				}
+			},
+			{
+				"name": "Email_Alert",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Powerbi_Refreshment",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-21.eastus.logic.azure.com:443/workflows/9a523e53509045708f4198fd19b4167b/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=mn741ouI1vLL1R1_J6I-CBJwj5_31-WkHyo5BPt_Ed4",
+					"method": "POST",
+					"body": {
+						"value": "{\n    \"PipelineNmae\":\"@{pipeline().Pipeline}\",\n    \"ErrorMessage\":\"@{activity('lkp_stored_procedure').Error.Message}\",\n    \"RunId\":\"@{pipeline().RunId}\"\n}",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Powerbi_Refreshment",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "lkp_stored_procedure",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"url": "https://prod-43.eastus.logic.azure.com:443/workflows/356a24d4d57a448e946d93714f92f68b/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uq9sR46w0OtdMLkt-Cd7rb1WyjVnUQUm0jDXn7fRcoY",
+					"method": "POST"
+				}
+			}
+		],
+		"annotations": [],
+		"lastPublishTime": "2023-03-04T12:52:12Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
